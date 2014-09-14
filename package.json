@@ -1,0 +1,31 @@
+{
+  "name": "jsserv",
+  "version": "1.0.0",
+  "description": "static server for current or a specific directory with support of css preporcessors, coffee script, jade etc.",
+  "main": "app.js",
+  "scripts": {
+    "test": "node test/app.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hamidlab/jsserv.git"
+  },
+  "keywords": [
+    "http",
+    "static",
+    "server"
+  ],
+  "author": "HamidRaza",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/hamidlab/jsserv/issues"
+  },
+  "homepage": "https://github.com/hamidlab/jsserv",
+  "dependencies": {
+    "coffee-script": "^1.8.0",
+    "jade": "^1.6.0",
+    "less": "^1.7.5",
+    "mmmagic": "^0.3.8",
+    "node-sass": "^0.9.3"
+  }
+}
