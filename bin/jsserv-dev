@@ -1,0 +1,132 @@
+#!/usr/bin/env node
+
+var colors = require("colors"),
+    argv = require("optimist").boolean("optimist").argv,
+    http = require("http"),
+    url = require("url"),
+    path = require("path"),
+    fs = require("fs"),
+    mmm = require('mmmagic'),
+    magic = new mmm.Magic(mmm.MAGIC_MIME_TYPE),
+    sass = require('node-sass'),
+    less = require('less'),
+    coffee = require('coffee-script'),
+    jade = require('jade');
+
+if(argv.h || argv.help){
+  console.log([
+    "usage: jsserv-dev [path] [options]",
+    "",
+    "options:",
+    "  -p              Port to use [8765]",
+    "  -d              Directory [./]",
+    "  -h --help       Print this list exit."
+  ].join("\n"));
+}
+
+var port = argv.p || 8765;
+var root = argv.d || process.cwd();
+
+function getFileContent(filepath, callback){
+  fs.exists(filepath, function(exists){
+    if(exists){
+      var stats = fs.lstatSync(filepath);
+      if(stats.isDirectory()) {
+        filepath = path.join(filepath, 'index.html');
+        getFileContent(filepath, callback);
+      }
+      fs.readFile(filepath, 'utf8', function(err,data) {
+        if(err){
+          callback('error reading file - ' + filepath, 'text/plain');
+        }else{
+          switch(filepath.split('.').pop()){
+            case 'sass':
+            case 'scss':
+              sass.render({
+                data: data,
+                success: function(css){
+                  callback(css, 'text/css');
+                },
+                error: function(){
+                  callback('sass render error', 'text/plain');
+                }
+              });
+              break;
+            case 'less':
+              less.render(data, function(e, css){
+                if(e){
+                  callback('less render error', 'text/plain');
+                }else{
+                  callback(css, 'text/css');
+                }
+              });
+              callback(data, 'text/css');
+              break;
+            case 'coffee':
+              callback(coffee.compile(data), 'application/javascript');
+              break;
+            case 'jade':
+              callback(jade.render(data, {}), 'text/html');
+              break;
+            default:
+              magic.detectFile(filepath, function(err, result){
+                if(err){
+                  callback(data, 'text/plain');
+                }else{
+                  callback(data, result);
+                }
+              });
+          }
+        }
+      });
+    }else{
+      var filepathA = filepath.split('.');
+      var fileExt = filepathA.pop();
+      var fileWithoutExt = filepathA.join('.');
+      switch(fileExt){
+        case 'css':
+          switch(true){
+            case fs.existsSync(fileWithoutExt + '.sass'):
+              filepath = fileWithoutExt + '.sass';
+              getFileContent(filepath, callback);
+              break;
+            case fs.existsSync(fileWithoutExt + '.scss'):
+              filepath = fileWithoutExt + '.scss';
+              getFileContent(filepath, callback);
+              break;
+            case fs.existsSync(fileWithoutExt + '.less'):
+              filepath = fileWithoutExt + '.less';
+              getFileContent(filepath, callback);
+              break;
+            default:
+              callback('file not found - ' + filepath, 'text/plain');
+          }
+          break;
+        case 'js':
+          getFileContent(fileWithoutExt + '.coffee', callback);
+          break;
+        case 'html':
+          getFileContent(fileWithoutExt + '.jade', callback);
+          break;
+        default:
+          callback('file not found - ' + filepath, 'text/plain');
+      }
+    }
+  });
+}
+
+function start(res, string, type){
+  res.writeHead(200, {
+    "Content-Type": (type || "text/html")
+  });
+  res.write(string || 'default string');
+  res.end();
+}
+
+http.createServer(function(req, res) {
+  var pathname = url.parse(req.url).pathname.replace(/^\//, '');
+  var filepath = path.join(root, pathname);
+  getFileContent(filepath, function(data, mime){
+    start(res, data, mime);
+  });
+}).listen(port);
