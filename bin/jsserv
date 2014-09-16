@@ -1,0 +1,214 @@
+#!/usr/bin/env node
+
+var colors = require("colors"),
+    argv = require("optimist").boolean("optimist").argv,
+    http = require("http"),
+    url = require("url"),
+    path = require("path"),
+    fs = require("fs"),
+    mmm = require('mmmagic'),
+    magic = new mmm.Magic(mmm.MAGIC_MIME),
+    sass = require('node-sass'),
+    less = require('less'),
+    coffee = require('coffee-script'),
+    jade = require('jade')
+    markdown = require("markdown").markdown;
+
+if(argv.h || argv.help){
+  console.log([
+    "usage: jsserv-dev [path] [options]",
+    "",
+    "options:",
+    "  -p              Port to use [8765]",
+    "  -d              Directory [./]",
+    "  -h --help       Print this list exit."
+  ].join("\n"));
+}
+
+var config = {
+  port: argv.p || 8765,
+  fallbackExt: ['scss', 'sass', 'less', 'coffee'],
+  autoParse: ['md'],
+  root: argv.d || process.cwd()
+};
+
+function listDir(dirName){
+  try{
+    var files = fs.readdirSync(dirName);
+    if(!files) return false;
+    var dirListStr = [];
+    dirListStr.push("<HTML><HEAD><title>Directory Listing</title></HEAD><BODY>");
+    dirListStr.push("<h1>Directory Listing</h1>");
+    dirListStr.push("<style>body{font-family: arial; font-size: 12px;}</style>");
+    dirListStr.push("<ul>");
+
+    files.forEach(function(ele){
+      var hrefPath = ele;
+      dirListStr.push("<li><a href='" + (dirName.replace(new RegExp(config.root), '') + '/' + ele) + "'>" + ele + "</a></li>");
+    });
+
+    dirListStr.push("</ul>");
+    dirListStr.push("</BODY></HTML>");
+    return dirListStr.join("\n");
+  }catch(e){
+    return false;
+  }
+}
+
+function getFile(filepath){
+  var fStat;
+  try{
+    fStat = fs.statSync(filepath);
+    if(fStat.isFile()){
+      return filepath;
+    }else if(fStat.isDirectory()){
+      return getFile(path.join(filepath, 'index.html')) ||
+             getFile(path.join(filepath, 'index.htm'));
+    }
+  }catch(e){}
+  return false;
+}
+
+function getFallbackFile(filepath){
+  try{
+    var parentDir = filepath.split('/');
+    var urlFile = parentDir.pop().split('.');
+    parentDir = parentDir.join('/');
+    if(fs.statSync(parentDir)){
+      var ext = urlFile.pop();
+      urlFile = urlFile.join('.');
+      if(urlFile){
+        for(var i=0, l = config.fallbackExt.length; i<l; i++){
+          var file = getFile(path.join(parentDir, urlFile+'.'+config.fallbackExt[i]));
+          if(file){
+            return {
+              'type': config.fallbackExt[i],
+              'file': file
+            };
+            break;
+          }
+        }
+      }
+    }
+  }catch(e){}
+  return false;
+}
+
+function getFileContent(fileName, callback){
+  var result;
+  if(!fileName) {
+    callback(true);
+    return false;
+  }
+  try {
+    var fileContent = fs.readFileSync(fileName);
+    magic.detect(fileContent, function(err, fileResult) {
+      if(err){
+        callback(true);
+      }else{
+        try{
+          var frSplit = fileResult.split('; ');
+          var data = {
+            'data': fileContent,
+            'mime': frSplit[0],
+            'type': frSplit[1].split('=')[1],
+            'status': 200
+          };
+          callback(false, data);
+        }catch(e){
+          callback(true);
+        }
+      }
+    });
+  }catch(e){
+    callback(true);
+    return false;
+  }
+}
+
+function parseContent(data, type, callback){
+  switch(type){
+    case 'sass':
+    case 'scss':
+      sass.render({
+        data: data,
+        success: function(css){
+          callback(false, css, 'text/css');
+        },
+        error: function(){
+          callback(true);
+        }
+      });
+      break;
+    case 'less':
+      less.render(data, function(e, css){
+        if(e){
+          callback(true);
+        }else{
+          callback(false, css, 'text/css');
+        }
+      });
+      callback(data, 'text/css');
+      break;
+    case 'coffee':
+      callback(false, coffee.compile(data), 'application/javascript');
+      break;
+    case 'jade':
+      callback(false, jade.render(data, {}), 'text/html');
+      break;
+    case 'md':
+      callback(false, markdown.toHTML(data), 'text/html');
+      break;
+    default:
+      callback(false);
+  }
+}
+
+http.createServer(function(req, res) {
+  var pathname = url.parse(req.url).pathname.replace(/^\//, '');
+  var fileName = getFile(path.join(config.root, pathname));
+  var fallbackFile = fileName? false : (getFallbackFile(path.join(config.root, pathname)));
+
+  getFileContent(fileName || fallbackFile['file'], function(err, fileData){
+    if(err) {
+      fileData = {
+        'data': 'Not Found',
+        'type': false,
+        'mime': 'text/html',
+        'status': 404
+      };
+      var directoryContent = listDir(path.join(config.root, pathname));
+      if(directoryContent){
+        fileData['data'] = directoryContent;
+        fileData['status'] = 200;
+      }
+      res.writeHead(fileData['status'], {"Content-Type": fileData['mime']});
+      res.write(fileData['data'], fileData['type']);
+      res.end();
+    }else{
+      var fileSplits = (fileName || fallbackFile['file']).split('.');
+      var ext = fileSplits[fileSplits.length-1];
+      if(fallbackFile || config.autoParse.indexOf(ext) >= 0){
+        parseContent(fileData['data'].toString(), fallbackFile['type'] || ext, function(err, data, type){
+          if(!err){
+            fileData['data'] = data;
+            fileData['mime'] = type;
+            fileData['type'] = false;
+          }
+
+          res.writeHead(fileData['status'], {"Content-Type": fileData['mime']});
+          res.write(fileData['data'], fileData['type']);
+          res.end();
+        });
+      }else{
+        res.writeHead(fileData['status'], {"Content-Type": fileData['mime']});
+        res.write(fileData['data'], fileData['type']);
+        res.end();
+      }
+    }
+  });
+
+}).listen(config.port, function(){
+  console.log('Go to http://localhost:8765\n'.green);
+});
+

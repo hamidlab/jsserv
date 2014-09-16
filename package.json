@@ -1,6 +1,6 @@
 {
   "name": "jsserv",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "static server for current or a specific directory with support of css preporcessors, coffee script, jade etc.",
   "main": "app.js",
   "scripts": {
@@ -26,6 +26,7 @@
     "colors": "^0.6.2",
     "jade": "^1.6.0",
     "less": "^1.7.5",
+    "markdown": "^0.5.0",
     "mmmagic": "^0.3.8",
     "node-sass": "^0.9.3",
     "optimist": "^0.6.1"
