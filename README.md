@@ -29,6 +29,7 @@ File Structure
 
     ---------------------------------------
     cd into your site folder and run `jsserv`
+    now goto/browse -- http://localhost:8765/
         
 *That's it, you will be coding your static website like you used to code with html/css/javascript except with `jsserv` you'll be enjoing benefits of css preprocessors, coffee script, jade etc without any taks runner or complex frameworks.*
 
