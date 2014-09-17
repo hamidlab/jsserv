@@ -17,7 +17,7 @@ Demo
         h1 Testing JSSERV
         script(src='js/script.js')
 
-    
+
 File Structure
 
     yourWebDir
@@ -30,10 +30,13 @@ File Structure
     ---------------------------------------
     cd into your site folder and run `jsserv`
     now goto/browse -- http://localhost:8765/
-        
-*That's it, you will be coding your static website like you used to code with html/css/javascript except with `jsserv` you'll be enjoing benefits of css preprocessors, coffee script, jade etc without any taks runner or complex frameworks.*
+
+*That's it, you will be coding your static website like you used to code with html/css/javascript, except with `jsserv` you'll be enjoing benefits of css preprocessors, coffee script, jade etc without any taks runner or frameworks.*
 
 How it works
-  - when you request for `stylesheet.css`, `jsserv` will look for `stylesheet.css` or `stylesheet.scss` or `stylesheet.sass` or `stylesheet.less`.
-  - when you request for `script.js`, `jsserv` will look for `script.js` or `script.coffee`.
-  - when you request for `page.html`, `jsserv` will look for `page.html` or `page.jade`.
+------------
+
+* when you request for `stylesheet.css`, `jsserv` will look for `stylesheet.css` or `stylesheet.scss` or `stylesheet.sass` or `stylesheet.less` or `stylesheet.styl`.
+* when you request for `script.js`, `jsserv` will look for `script.js` or `script.coffee`.
+* when you request for `page.html`, `jsserv` will look for `page.html` or `page.jade`.
+

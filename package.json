@@ -29,7 +29,8 @@
     "markdown": "^0.5.0",
     "mmmagic": "^0.3.8",
     "node-sass": "^0.9.3",
-    "optimist": "^0.6.1"
+    "optimist": "^0.6.1",
+    "stylus": "^0.48.1"
   },
   "preferGlobal": "true",
   "bin": {

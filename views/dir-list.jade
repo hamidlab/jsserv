@@ -1,0 +1,9 @@
+extends inc/main
+
+block body
+  h1 Directory Listing for .#{dirName}
+  ul
+    -for(var i=0, l=files.length; i<l; i++)
+      li
+        a(href=dirName+'/'+files[i])= files[i]
+
