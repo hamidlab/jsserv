@@ -1,6 +1,6 @@
 {
   "name": "jsserv",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "static server for current or a specific directory with support of css preporcessors, coffee script, jade etc.",
   "main": "app.js",
   "scripts": {
