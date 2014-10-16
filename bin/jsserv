@@ -2,57 +2,25 @@
 
 var colors = require("colors"),
     http = require("http"),
-    url = require("url"),
+    https = require('https'),
     path = require("path"),
-    jade = require("jade"),
     config = require(path.join(__dirname, '../config')),
     jsserv = require(path.join(__dirname, '../app.js'));
 
-function run(res, data){
-  res.writeHead(data['status'], {"Content-Type": data['mime']});
-  res.write(data['data'], data['type']);
-  res.end();
-}
-
-http.createServer(function(req, res) {
-  var pathname = url.parse(req.url).pathname.replace(/^\//, '');
-  var fileName = jsserv.getFile(path.join(config.rootDir, pathname));
-  var fallbackFile = fileName? false : (jsserv.getFallbackFile(path.join(config.rootDir, pathname)));
-
-  jsserv.getFileContent(fileName || fallbackFile['file'], function(err, fileData){
-    if(err) {
-      fileData = {
-        'data': jade.renderFile(path.join(__dirname, '../views/404.jade')),
-        'type': false,
-        'mime': 'text/html',
-        'status': 404
-      };
-      jsserv.listDir(path.join(config.rootDir, pathname), function(err, dirData){
-        if(!err){
-          fileData['data'] = dirData;
-          fileData['status'] = 200;
-        }
-        run(res, fileData);
-      });
-    }else{
-      var fileSplits = (fileName || fallbackFile['file']).split('.');
-      var ext = fileSplits[fileSplits.length-1];
-      if(fallbackFile || config.autoParse.indexOf(ext) >= 0){
-        jsserv.parseContent(fileData['data'].toString(), fallbackFile['type'] || ext, function(err, data, type){
-          if(!err){
-            fileData['data'] = data;
-            fileData['mime'] = type;
-            fileData['type'] = false;
-          }
-          run(res, fileData);
-        });
-      }else{
-        run(res, fileData);
-      }
-    }
+if(!config.ssl){
+  http.createServer(function(req, res) {
+    jsserv.createServer(req, res);
+  }).listen(config.port, function(){
+    console.log(("Go to http://localhost:" + config.port + "\n").green);
   });
-
-}).listen(config.port, function(){
-  console.log(("Go to http://localhost:" + config.port + "\n").green);
-});
+}else{
+  https.createServer({
+    key: config.https.key,
+    cert: config.https.cert
+  }, function(req, res) {
+    jsserv.createServer(req, res);
+  }).listen(config.port, function(){
+    console.log(("Go to https://localhost:" + config.port + "\n").green);
+  });
+}
 

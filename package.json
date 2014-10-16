@@ -29,8 +29,10 @@
     "markdown": "^0.5.0",
     "mmmagic": "^0.3.8",
     "node-sass": "^0.9.3",
+    "node-watch": "^0.3.4",
     "optimist": "^0.6.1",
-    "stylus": "^0.48.1"
+    "stylus": "^0.48.1",
+    "websocket": "^1.0.8"
   },
   "preferGlobal": "true",
   "bin": {

@@ -3,6 +3,7 @@
 var path = require('path'),
     mmm = require('mmmagic'),
     magic = new mmm.Magic(mmm.MAGIC_MIME),
+    watch = require('node-watch'),
     sass = require('node-sass'),
     less = require('less'),
     coffee = require('coffee-script'),
@@ -10,12 +11,16 @@ var path = require('path'),
     markdown = require("markdown").markdown,
     stylus = require('stylus'),
     config = require(path.join(__dirname, 'config.js')),
+    url = require('url'),
     fs = require('fs');
 
 process.stdin.on('data', function(key){
   if(key == "c\n"){
     console.log("Server stopped.".grey);
     process.exit();
+  }
+  if(key == "clear\n"){
+    process.stdout.write('\u001B[2J\u001B[0;0f');
   }
 });
 process.on('SIGINT', function() {
@@ -79,7 +84,24 @@ Jsserv.prototype = {
     }catch(e){}
     return false;
   },
+  getMime: function(fileName){
+    var ext = fileName.split('.').pop();
+    if(!ext) return false;
+    switch(ext){
+      case 'css':
+        return 'text/css';
+        break;
+      case 'js':
+      case 'json':
+        return 'application/javascript';
+        break;
+      case 'html':
+        return 'text/html'
+    }
+    return false;
+  },
   getFileContent: function(fileName, callback) {
+    var _this = this;
     var result;
     if(!fileName) {
       callback(true);
@@ -95,12 +117,13 @@ Jsserv.prototype = {
             var frSplit = fileResult.split('; ');
             var data = {
               'data': fileContent,
-              'mime': frSplit[0],
+              'mime': _this.getMime(fileName) || frSplit[0],
               'type': frSplit[1].split('=')[1],
               'status': 200
             };
             callback(false, data);
           }catch(e){
+            throw e;
             callback(true);
           }
         }
@@ -110,42 +133,52 @@ Jsserv.prototype = {
       return false;
     }
   },
-  parseContent: function(data, type, callback) {
+  parseContent: function(file, type, callback) {
     switch(type){
       case 'sass':
       case 'scss':
         sass.render({
-          data: data,
+          file: file,
           success: function(css){
             callback(false, css, 'text/css');
           },
-          error: function(){
+          error: function(e){
+            console.log('error'.red, e);
             callback(true);
           }
         });
         break;
       case 'styl':
         stylus(data).render(function(err, css){
-          callback(err, css);
+          callback(err, css, 'text/css');
         });
         break;
       case 'less':
-        less.render(data, function(e, css){
+        var parser = new(less.Parser)({
+          paths: [config.root],
+          filename: file
+        });
+        var data = "";
+        parser.parse(data, function(e, tree){
           if(e){
             callback(true);
           }else{
-            callback(false, css, 'text/css');
+            callback(false, tree.toCSS({
+              compress: true
+            }), 'text/css');
           }
         });
-        callback(data, 'text/css');
         break;
       case 'coffee':
-        callback(false, coffee.compile(data), 'application/javascript');
+        this.getFileContent(file, function(err, data){
+          callback(false, coffee.compile(data.data.toString()), 'application/javascript');
+        });
         break;
       case 'jade':
-        callback(false, jade.render(data, {}), 'text/html');
+        callback(false, jade.renderFile(file, {}), 'text/html');
         break;
       case 'md':
+        var data = "";
         try{
           var pageContent = jade.renderFile(path.join(__dirname, 'views/markdown.jade'), {
             markdownHTML: markdown.toHTML(data),
@@ -159,6 +192,50 @@ Jsserv.prototype = {
       default:
         callback(false);
     }
+  },
+  run: function(res, data){
+    res.writeHead(data['status'], {"Content-Type": data['mime']});
+    res.write(data['data'], data['type']);
+    res.end();
+  },
+  createServer: function(req, res){
+    var pathname = url.parse(req.url).pathname.replace(/^\//, '');
+    var fileName = this.getFile(path.join(config.rootDir, pathname));
+    var fallbackFile = fileName? false : (this.getFallbackFile(path.join(config.rootDir, pathname)));
+    var _this = this;
+
+    this.getFileContent(fileName || fallbackFile['file'], function(err, fileData){
+      if(err) {
+        fileData = {
+          'data': jade.renderFile(path.join(__dirname, 'views/404.jade')),
+          'type': false,
+          'mime': 'text/html',
+          'status': 404
+        };
+        _this.listDir(path.join(config.rootDir, pathname), function(err, dirData){
+          if(!err){
+            fileData['data'] = dirData;
+            fileData['status'] = 200;
+          }
+          _this.run(res, fileData);
+        });
+      }else{
+        var fileSplits = (fileName || fallbackFile['file']).split('.');
+        var ext = fileSplits[fileSplits.length-1];
+        if(fallbackFile || config.autoParse.indexOf(ext) >= 0){
+          _this.parseContent((fileName || fallbackFile['file']), fallbackFile['type'] || ext, function(err, data, type){
+            if(!err){
+              fileData['data'] = data;
+              fileData['mime'] = type;
+              fileData['type'] = false;
+            }
+            _this.run(res, fileData);
+          });
+        }else{
+          _this.run(res, fileData);
+        }
+      }
+    });
   }
 }
 
